@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"flag"
+	"html/template"
 	"log"
 	"net/http"
 	"os"
@@ -20,9 +21,10 @@ type config struct {
 
 // Struct to hold the dependencies for dependency injection into handlers. In this case, we have two loggers for informational messages and errors. This allows us to easily pass these dependencies to our handlers without using global variables.
 type application struct {
-	errorLog *log.Logger
-	infoLog  *log.Logger
-	snippets *models.SnippetModel
+	errorLog      *log.Logger
+	infoLog       *log.Logger
+	snippets      *models.SnippetModel
+	templateCache map[string]*template.Template
 	config
 }
 
@@ -51,6 +53,12 @@ func main() {
 
 	// Also defer db db.Close(), so that the connection pool is closed before the main() exits.
 	defer db.Close()
+
+	// Template cache
+	templateCache, err := newTemplateCache()
+	if err != nil {
+		errorLog.Fatal(err)
+	}
 
 	// Initialize a new instance of our application struct, containing our dependencies.
 	// cfg is a temporary staging variable — flags are parsed into it first, then
@@ -83,10 +91,11 @@ func main() {
 	// https://gist.github.com/alexedwards/5cd712192b4831058b21 - more examples of how to use closure pattern for dependency injection in Go.
 
 	app := &application{
-		errorLog: errorLog,
-		infoLog:  infoLog,
-		snippets: &models.SnippetModel{DB: db},
-		config:   cfg,
+		errorLog:      errorLog,
+		infoLog:       infoLog,
+		snippets:      &models.SnippetModel{DB: db},
+		templateCache: templateCache,
+		config:        cfg,
 	}
 
 	// Custom HTTP server. We create it mostly because default ListenAndServe uses default error logger and we want to use custom one.
